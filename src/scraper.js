@@ -1,7 +1,6 @@
 import puppeteer from "puppeteer";
 import FileSystem from "fs";
 import inquirer from "inquirer";
-import { assert } from "console";
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
