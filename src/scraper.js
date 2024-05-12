@@ -6,12 +6,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 async function scrape(productURL) {
 
-    const browser = await puppeteer.launch(
-        {
-            headless: false,
-            executablePath: '/usr/bin/google-chrome-stable',
-        }
-    );
+    const browser = await puppeteer.launch();
     const page = await browser.newPage()
 
     await page.goto(productURL)
