@@ -4,6 +4,7 @@ import inquirer from "inquirer";
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+
 async function scrape(productURL) {
 
     const browser = await puppeteer.launch();
@@ -67,7 +68,8 @@ async function scrape(productURL) {
                 }
 
                 // Handling constant values that will be present in each review Object
-                const ratingHistogram = document.querySelector('div[data-test="rating-histogram"]')
+                const ratingHistogram = document.querySelector('div[data-test="rating-histogram"]');
+
                 for (const button of ratingHistogram.querySelectorAll('button')) {
                     const ariaLabel = button.getAttribute('aria-label')
                     const match = ariaLabel.match(/((?<pc>\d{1,2}?\%)(?:.+)(?<starCount>[1-5](?=\sstars)))/)
@@ -104,15 +106,19 @@ async function scrape(productURL) {
                 let reviewList = document.querySelector('[data-test="reviews-list"]')
                 const reviewTitles = Array.from(reviewList.querySelectorAll('[data-test="review-card--title"]'))
 
+
                 var reviews = reviewTitles.map(
+                    
 
                     function (title) {
 
                         const productPrice = document.querySelector('[data-test="product-price"]').innerText;
+                        const productName = document.querySelector('[data-test="product-title"]').innerText;
+
 
                         //RecommendationStatus uwu
                         const recommendationElement = title.nextSibling.querySelector('[data-test="review-card--recommendation"]');
-                        let recommendationStatus = "No recommendation"; // Default value if recommendation status is not found
+                        let recommendationStatus = ""; 
                         if (recommendationElement) {
                             recommendationStatus = recommendationElement.innerText.split("\n")[1]
                         }
@@ -136,26 +142,38 @@ async function scrape(productURL) {
                                 ReviewValueOrQualityText2 = "Value";
                             }
                         }
-
-
-
+                        
                         // var ReviewPhotos = title.nextSibling.querySelector('[data-test="review-card--photos"]')
 
+                        //Cleaning Functions
+                        function removeSpecialCharacters(text) {
+                            const regex = /[^\w\s]/gi;
+                            return text.replace(regex, '');
+                        }    
+
+                        function cleanProductPrice(price) {
+                            const cleanedPrice = price.replace('$', '').replace(/[^\d.]/g, '');
+                            const integerPrice = Math.round(parseFloat(cleanedPrice));
+                            return integerPrice;
+                        }
+                                   
                         return {
-                            productPrice: productPrice,
-                            ReviewHead: title.innerText,
-                            ReviewBody: title.nextSibling.querySelector('[data-test="review-card--text"]').innerText,
-                            ReviewTime: title.nextSibling.querySelector('[data-test="review-card--reviewTime"]').innerText,
-                            RecommendationStatus: recommendationStatus,
+                            productName: removeSpecialCharacters(productName),
+                            productPrice: cleanProductPrice(productPrice),
+                            ReviewHead: removeSpecialCharacters(title.innerText),
+                            ReviewBody: removeSpecialCharacters(title.nextSibling.querySelector('[data-test="review-card--text"]').innerText), 
                             ReviewValueOrQualityNum1: ReviewValueOrQualityNum1,
                             ReviewValueOrQualityText1: ReviewValueOrQualityText1,
                             ReviewValueOrQualityNum2: ReviewValueOrQualityNum2,
                             ReviewValueOrQualityText2: ReviewValueOrQualityText2,
+                            ReviewTime: title.nextSibling.querySelector('[data-test="review-card--reviewTime"]').innerText,
+                            RecommendationStatus: recommendationStatus,
 
                             // ReviewPhotos: ReviewPhotos ? Array.from(photos.querySelectorAll('img')).map((img) => img.src) : [],
-                            ReviewRating: parseInt(title.nextSibling.querySelector('span[data-test="ratings"]').querySelector('span').innerText[0])
+                            // ReviewRating: parseInt(title.nextSibling.querySelector('span[data-test="ratings"]').querySelector('span').innerText[0])
 
                         }
+                        
                     }
                 )
 
@@ -163,8 +181,20 @@ async function scrape(productURL) {
             }, overallConstants
         )
         // all total values are actually the averages
-        overallConstants.TotalQuality = (reviews.reduce((acc, review) => acc + Math.min(review.ReviewValueOrQualityNum1, 5), 0) / reviews.length).toFixed(1)
-        overallConstants.TotalValue = (reviews.reduce((acc, review) => acc + Math.min(review.ReviewValueOrQualityNum2, 5), 0) / reviews.length).toFixed(1)
+        overallConstants.TotalQuality = ((reviews.reduce((acc, review) => {
+            if (review.ReviewValueOrQualityNum1 !== null && !isNaN(review.ReviewValueOrQualityNum1)) {
+                return acc + Math.min(review.ReviewValueOrQualityNum1, 5);
+            }
+            return acc;
+        }, 0)) / reviews.filter(review => review.ReviewValueOrQualityNum1 !== null && !isNaN(review.ReviewValueOrQualityNum1)).length).toFixed(1);
+        
+        overallConstants.TotalValue = ((reviews.reduce((acc, review) => {
+            if (review.ReviewValueOrQualityNum2 !== null && !isNaN(review.ReviewValueOrQualityNum2)) {
+                return acc + Math.min(review.ReviewValueOrQualityNum2, 5);
+            }
+            return acc;
+        }, 0)) / reviews.filter(review => review.ReviewValueOrQualityNum2 !== null && !isNaN(review.ReviewValueOrQualityNum2)).length).toFixed(1);
+                
         overallConstants.TotalReviews = reviews.length
         overallConstants.TotalRecommendation = reviews.reduce((acc, review) => acc + (review.RecommendationStatus === "Would recommend"), 0)
 
