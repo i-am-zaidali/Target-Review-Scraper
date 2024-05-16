@@ -13,9 +13,6 @@ async function scrape(productURL) {
     await page.goto(productURL)
     await page.waitForSelector("[data-test='product-title']")
 
-    const productTitle = await page.evaluate(
-        () => document.querySelector("[data-test='product-title']").innerText
-    )
 
     try {
         await page.evaluate(
@@ -46,12 +43,13 @@ async function scrape(productURL) {
         } catch (e) {
             console.error(e)
             console.log("Could not find reviews list")
-            return { productTitle, reviews: [] }
+            return { ProductName, reviews: [] }
         }
 
-        const overallConstants = {}
-        const reviews = await page.evaluate(
-            async function (constants) {
+        const { reviews, overallConstants } = await page.evaluate(
+            async function () {
+                const { ProductName, ProductPrice } = { ProductName: document.querySelector("[data-test='product-title']").innerText, ProductPrice: document.querySelector("[data-test='product-price']").innerText.replace("$", "").replaceAll(/([^\d\.])/g, "") }
+                const overallConstants = { ProductName, ProductPrice, TotalStars: 0, TotalStarsAverage: 0, TotalReviews: 0, TotalRecommendations: 0, TotalQuality: 0, TotalValue: 0, PercentFiveStars: 0, PercentFourStars: 0, PercentThreeStars: 0, PercentTwoStars: 0, PercentOneStars: 0 }
                 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 
@@ -82,43 +80,43 @@ async function scrape(productURL) {
                     pc = parseInt(pc.replace("%", ""))
                     switch (starCount) {
                         case '1':
-                            constants["PercentOneStars"] = pc
+                            overallConstants["PercentOneStars"] = pc
                             break
                         case '2':
-                            constants["PercentTwoStars"] = pc
+                            overallConstants["PercentTwoStars"] = pc
                             break
                         case '3':
-                            constants["PercentThreeStars"] = pc
+                            overallConstants["PercentThreeStars"] = pc
                             break
                         case '4':
-                            constants["PercentFourStars"] = pc
+                            overallConstants["PercentFourStars"] = pc
                             break
                         case '5':
-                            constants["PercentFiveStars"] = pc
+                            overallConstants["PercentFiveStars"] = pc
                             break
+                        case _:
+                            throw new Error("Unexpected star count")
                     }
                     console.log(pc, starCount)
                 }
 
-                constants.totalStars = document.querySelector('[data-test="rating-count"]').innerText.split(" ")[0]
-                constants.totalStarsAverage = parseInt(document.querySelector('[data-test="rating-value"]').innerText)
+                overallConstants.TotalStars = document.querySelector('[data-test="rating-count"]').innerText.split(" ")[0]
+                overallConstants.TotalStarsAverage = parseInt(document.querySelector('[data-test="rating-value"]').innerText)
 
                 let reviewList = document.querySelector('[data-test="reviews-list"]')
                 const reviewTitles = Array.from(reviewList.querySelectorAll('[data-test="review-card--title"]'))
 
 
                 var reviews = reviewTitles.map(
-                    
+
 
                     function (title) {
 
-                        const productPrice = document.querySelector('[data-test="product-price"]').innerText;
-                        const productName = document.querySelector('[data-test="product-title"]').innerText;
 
 
                         //RecommendationStatus uwu
                         const recommendationElement = title.nextSibling.querySelector('[data-test="review-card--recommendation"]');
-                        let recommendationStatus = ""; 
+                        let recommendationStatus = "";
                         if (recommendationElement) {
                             recommendationStatus = recommendationElement.innerText.split("\n")[1]
                         }
@@ -142,26 +140,12 @@ async function scrape(productURL) {
                                 ReviewValueOrQualityText2 = "Value";
                             }
                         }
-                        
+
                         // var ReviewPhotos = title.nextSibling.querySelector('[data-test="review-card--photos"]')
 
-                        //Cleaning Functions
-                        function removeSpecialCharacters(text) {
-                            const regex = /[^\w\s]/gi;
-                            return text.replace(regex, '');
-                        }    
-
-                        function cleanProductPrice(price) {
-                            const cleanedPrice = price.replace('$', '').replace(/[^\d.]/g, '');
-                            const integerPrice = Math.round(parseFloat(cleanedPrice));
-                            return integerPrice;
-                        }
-                                   
                         return {
-                            productName: removeSpecialCharacters(productName),
-                            productPrice: cleanProductPrice(productPrice),
-                            ReviewHead: removeSpecialCharacters(title.innerText),
-                            ReviewBody: removeSpecialCharacters(title.nextSibling.querySelector('[data-test="review-card--text"]').innerText), 
+                            ReviewHeading: title.innerText,
+                            ReviewBody: title.nextSibling.querySelector('[data-test="review-card--text"]').innerText,
                             ReviewValueOrQualityNum1: ReviewValueOrQualityNum1,
                             ReviewValueOrQualityText1: ReviewValueOrQualityText1,
                             ReviewValueOrQualityNum2: ReviewValueOrQualityNum2,
@@ -173,40 +157,40 @@ async function scrape(productURL) {
                             // ReviewRating: parseInt(title.nextSibling.querySelector('span[data-test="ratings"]').querySelector('span').innerText[0])
 
                         }
-                        
+
                     }
                 )
 
-                return reviews
-            }, overallConstants
+                return { reviews, overallConstants }
+            }
         )
         // all total values are actually the averages
-        overallConstants.TotalQuality = ((reviews.reduce((acc, review) => {
-            if (review.ReviewValueOrQualityNum1 !== null && !isNaN(review.ReviewValueOrQualityNum1)) {
-                return acc + Math.min(review.ReviewValueOrQualityNum1, 5);
-            }
-            return acc;
-        }, 0)) / reviews.filter(review => review.ReviewValueOrQualityNum1 !== null && !isNaN(review.ReviewValueOrQualityNum1)).length).toFixed(1);
-        
-        overallConstants.TotalValue = ((reviews.reduce((acc, review) => {
-            if (review.ReviewValueOrQualityNum2 !== null && !isNaN(review.ReviewValueOrQualityNum2)) {
-                return acc + Math.min(review.ReviewValueOrQualityNum2, 5);
-            }
-            return acc;
-        }, 0)) / reviews.filter(review => review.ReviewValueOrQualityNum2 !== null && !isNaN(review.ReviewValueOrQualityNum2)).length).toFixed(1);
-                
+        var qualityFiltered = reviews.filter(review => review.ReviewValueOrQualityNum1 !== null && !isNaN(review.ReviewValueOrQualityNum1))
+        overallConstants.TotalQuality = ((qualityFiltered.reduce((acc, review) => acc + Math.min(review.ReviewValueOrQualityNum1, 5), 0)) / qualityFiltered.length).toFixed(1);
+
+        var valueFiltered = reviews.filter(review => review.ReviewValueOrQualityNum2 !== null && !isNaN(review.ReviewValueOrQualityNum2))
+        overallConstants.TotalValue = ((valueFiltered.reduce((acc, review) => acc + Math.min(review.ReviewValueOrQualityNum2, 5), 0)) / valueFiltered.length).toFixed(1);
+
         overallConstants.TotalReviews = reviews.length
-        overallConstants.TotalRecommendation = reviews.reduce((acc, review) => acc + (review.RecommendationStatus === "Would recommend"), 0)
+        overallConstants.TotalRecommendations = reviews.reduce((acc, review) => acc + (review.RecommendationStatus !== ""), 0)
 
-        reviews.forEach((item, ind, _) => (reviews[ind] = { ...item, ...overallConstants }))
+        // Weird requirement for the csv columns to be in the correct order
+        var sortedColumns = ["ProductName", "ProductPrice", "ReviewHeading", "ReviewBody", "ReviewValueOrQualityNum1", "ReviewValueOrQualityText1", "ReviewValueOrQualityNum2", "ReviewValueOrQualityText2", "ReviewTime", "RecommendationStatus", "TotalQuality", "TotalValue", "TotalReviews", "PercentFiveStars", "PercentFourStars", "PercentThreeStars", "PercentTwoStars", "PercentOneStars", "TotalStars", "TotalStarsAverage", "TotalRecommendations"]
+
+        const finalReviews = reviews.map(
+            (item) => {
+                let tmp;
+                return Object.fromEntries(sortedColumns.map((key) => [key, (typeof (tmp = (item[key] ?? overallConstants[key])) === "string" ? tmp.replaceAll('"', '""') : tmp)]));
+            }
+        );
 
 
-        console.log(reviews, reviews.length)
-        return { productTitle, reviews }
+        console.log(finalReviews, finalReviews.length)
+        return { ProductName: overallConstants.ProductName, reviews: finalReviews }
     } catch (e) {
         console.error(e)
         console.log("Could not find reviews list")
-        return { productTitle, reviews: [] }
+        return { ProductName: "", reviews: [] }
     }
 }
 
@@ -229,7 +213,7 @@ inquirer.prompt(
         type: 'input',
         name: 'outputFile',
         message: 'Enter the output file name (without extension, use "{productName}" to replace with the product\'s name):',
-        default: '{productName}_reviews',
+        default: '{ProductName}_reviews',
     }
     ],
 ).then(
@@ -237,16 +221,16 @@ inquirer.prompt(
         let iterations = 0;
         let responses = ["This is taking rather long �", "It's getting hot in here, no? �", "The wait is exhausting, isn't it? �", "I'm getting tired of waiting now �", "I'm starting to get impatient �", "I'm getting bored �", "I'm getting really bored �", "Ok I'm worried now �"]
         var waiting = setInterval(() => {
-            if (iterations === responses.length) {
+            if (iterations === (responses.length * 2)) {
                 console.error("This has taken an unusual amount of time to complete. The process is being terminated. Try again later.")
                 process.exit()
             }
-            console.log(responses[iterations++])
+            console.log(responses[Math.round(Math.random() * responses.length)])
         }, 30000)
         scrape(answers.productURL).then(
-            async ({ productTitle, reviews }) => {
+            async ({ ProductName, reviews }) => {
                 clearInterval(waiting)
-                const outputFile = answers.outputFile.replace('{productName}', productTitle.replaceAll(' ', '_').replaceAll('-', '_'))
+                const outputFile = answers.outputFile.replace('{ProductName}', ProductName.replaceAll(' ', '_').replaceAll('-', '_'))
                 if (!FileSystem.existsSync('scraped')) {
                     FileSystem.mkdirSync('scraped')
                 }
@@ -254,7 +238,7 @@ inquirer.prompt(
                     FileSystem.writeFileSync(`scraped/${outputFile}.json`, JSON.stringify(reviews, null, 4))
                 }
                 if (answers.outputType === 'csv' || answers.outputType === 'both') {
-                    const csv = Object.keys(reviews[0]).join(',') + "\n" + reviews.map((review) => Object.values(review).join(',')).join('\n')
+                    const csv = '"' + Object.keys(reviews[0]).join('","') + '"\n"' + reviews.map((review) => Object.values(review).join('","')).join('"\n"') + '"'
                     FileSystem.writeFileSync(`scraped/${outputFile}.csv`, csv)
                 }
                 process.exit()
