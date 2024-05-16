@@ -101,7 +101,7 @@ async function scrape(productURL) {
                 }
 
                 overallConstants.TotalStars = document.querySelector('[data-test="rating-count"]').innerText.split(" ")[0]
-                overallConstants.TotalStarsAverage = parseInt(document.querySelector('[data-test="rating-value"]').innerText)
+                overallConstants.TotalStarsAverage = parseFloat(document.querySelector('[data-test="rating-value"]').innerText).toFixed(1)
 
                 let reviewList = document.querySelector('[data-test="reviews-list"]')
                 const reviewTitles = Array.from(reviewList.querySelectorAll('[data-test="review-card--title"]'))
