@@ -94,7 +94,7 @@ async function scrape(productURL) {
                         case '5':
                             overallConstants["PercentFiveStars"] = pc
                             break
-                        case _:
+                        default:
                             throw new Error("Unexpected star count")
                     }
                     console.log(pc, starCount)
@@ -194,55 +194,63 @@ async function scrape(productURL) {
     }
 }
 
+function main() {
 
-inquirer.prompt(
-    [{
-        type: 'input',
-        name: 'productURL',
-        message: 'Enter the product url (The URL must belong to target.com):',
-        validate: (value, answers) => value.startsWith('https://www.target.com/p/') ? true : 'The URL must start with "https://www.target.com/p/"',
-    },
-    {
-        type: 'list',
-        name: 'outputType',
-        message: 'Choose the output type',
-        choices: ['json', 'csv', 'both'],
-        default: 'json',
-    },
-    {
-        type: 'input',
-        name: 'outputFile',
-        message: 'Enter the output file name (without extension, use "{productName}" to replace with the product\'s name):',
-        default: '{ProductName}_reviews',
-    }
-    ],
-).then(
-    async (answers) => {
-        let iterations = 0;
-        let responses = ["This is taking rather long �", "It's getting hot in here, no? �", "The wait is exhausting, isn't it? �", "I'm getting tired of waiting now �", "I'm starting to get impatient �", "I'm getting bored �", "I'm getting really bored �", "Ok I'm worried now �"]
-        var waiting = setInterval(() => {
-            if (iterations === (responses.length * 2)) {
-                console.error("This has taken an unusual amount of time to complete. The process is being terminated. Try again later.")
-                process.exit()
-            }
-            console.log(responses[Math.round(Math.random() * responses.length)])
-        }, 30000)
-        scrape(answers.productURL).then(
-            async ({ ProductName, reviews }) => {
-                clearInterval(waiting)
-                const outputFile = answers.outputFile.replace('{ProductName}', ProductName.replaceAll(' ', '_').replaceAll('-', '_'))
-                if (!FileSystem.existsSync('scraped')) {
-                    FileSystem.mkdirSync('scraped')
+    inquirer.prompt(
+        [{
+            type: 'input',
+            name: 'productURL',
+            message: 'Enter the product url (The URL must belong to target.com):',
+            validate: (value, answers) => value.startsWith('https://www.target.com/p/') ? true : 'The URL must start with "https://www.target.com/p/"',
+        },
+        {
+            type: 'list',
+            name: 'outputType',
+            message: 'Choose the output type',
+            choices: ['json', 'csv', 'both'],
+            default: 'json',
+        },
+        {
+            type: 'input',
+            name: 'outputFile',
+            message: 'Enter the output file name (without extension, use "{productName}" to replace with the product\'s name):',
+            default: '{ProductName}_reviews',
+        }
+        ],
+    ).then(
+        async (answers) => {
+            let iterations = 0;
+            let responses = ["This is taking rather long �", "It's getting hot in here, no? �", "The wait is exhausting, isn't it? �", "I'm getting tired of waiting now �", "I'm starting to get impatient �", "I'm getting bored �", "I'm getting really bored �", "Ok I'm worried now �"]
+            var waiting = setInterval(() => {
+                if (iterations === (responses.length * 2)) {
+                    console.error("This has taken an unusual amount of time to complete. The process is being terminated. Try again later.")
+                    process.exit()
                 }
-                if (answers.outputType === 'json' || answers.outputType === 'both') {
-                    FileSystem.writeFileSync(`scraped/${outputFile}.json`, JSON.stringify(reviews, null, 4))
+                console.log(responses[Math.round(Math.random() * responses.length)])
+            }, 30000)
+            scrape(answers.productURL).then(
+                async ({ ProductName, reviews }) => {
+                    clearInterval(waiting)
+                    const outputFile = answers.outputFile.replace('{ProductName}', ProductName.replaceAll(' ', '_').replaceAll('-', '_'))
+                    if (!FileSystem.existsSync('scraped')) {
+                        FileSystem.mkdirSync('scraped')
+                    }
+                    if (answers.outputType === 'json' || answers.outputType === 'both') {
+                        FileSystem.writeFileSync(`scraped/${outputFile}.json`, JSON.stringify(reviews, null, 4))
+                    }
+                    if (answers.outputType === 'csv' || answers.outputType === 'both') {
+                        const csv = '"' + Object.keys(reviews[0]).join('","') + '"\n"' + reviews.map((review) => Object.values(review).join('","')).join('"\n"') + '"'
+                        FileSystem.writeFileSync(`scraped/${outputFile}.csv`, csv)
+                    }
+                    process.exit()
                 }
-                if (answers.outputType === 'csv' || answers.outputType === 'both') {
-                    const csv = '"' + Object.keys(reviews[0]).join('","') + '"\n"' + reviews.map((review) => Object.values(review).join('","')).join('"\n"') + '"'
-                    FileSystem.writeFileSync(`scraped/${outputFile}.csv`, csv)
-                }
-                process.exit()
-            }
-        )
-    }
-)
+            )
+        }
+    )
+}
+
+if (require.main === module) {
+    main()
+}
+
+export default scrape
